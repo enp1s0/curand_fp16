@@ -1,0 +1,114 @@
+#include <cuda_rand_fp16/cuda_rand_fp16.hpp>
+#include <stdexcept>
+
+namespace {
+constexpr unsigned block_size = 256;
+template <class T>
+__global__ void status_init_kernel(
+		T* const status,
+		const std::uint64_t seed
+		) {
+	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+	curand_init(seed, tid, 0, status + tid);
+}
+
+template <class T>
+struct size_of{int value = 0;};
+template <> struct size_of<ushort1> {static const int value = 2;};
+template <> struct size_of<uint1  > {static const int value = 4;};
+template <> struct size_of<ulong2 > {static const int value = 16;};
+template <> struct size_of<half   > {static const int value = 2;};
+template <> struct size_of<half2  > {static const int value = 4;};
+
+template <class RNG_T>
+__global__ void generate_kernel(
+		half* const array_ptr,
+		RNG_T* const status_ptr,
+		const std::size_t size
+		) {
+	const auto batch_size = size_of<ulong2>::value / size_of<half>::value;
+	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+	for (unsigned i = tid; i < size; i += batch_size * gridDim.x * blockDim.x) {
+		const auto res = size - tid;
+		if (res < batch_size) {
+			// TODO
+		} else {
+			// block gen
+			union {
+				half   h1[size_of<ulong2>::value / size_of<half >::value];
+				half2  h2[size_of<ulong2>::value / size_of<half2>::value];
+				ulong2 ul2;
+			} batch_block;
+
+			for (unsigned j = 0; j < size_of<ulong2>::value / size_of<uint1>::value; j++) {
+				union {
+					ushort1 us[size_of<uint1>::value / size_of<ushort1>::value];
+					uint1 ui1;
+				} rand_batch_block;
+				rand_batch_block.ui1.x = curand(status_ptr + tid);
+				for (unsigned k = 0; k < size_of<uint1>::value / size_of<half>::value; k++) {
+					const auto us = rand_batch_block.us[k];
+					const auto v  = __float2half(static_cast<float>(us.x) / static_cast<float>(0x7fff));
+
+					batch_block.h1[k + j * size_of<uint1>::value / size_of<half>::value] = v;
+				}
+			}
+			*reinterpret_cast<ulong2*>(array_ptr + i) = batch_block.ul2;
+		}
+	}
+}
+} // noname namespace
+
+void mtk::cuda_rand_fp16::create(generator_t &gen, const curandRngType_t rng_type) {
+	// set cuda stream
+	gen.cuda_stream = 0;
+	// get num sm
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0);
+	gen.num_sm = prop.multiProcessorCount;
+
+	// calculate grid_size
+	gen.num_threads = gen.num_sm * 6 * block_size;
+
+	// set algo
+	gen.rng_type = rng_type;
+
+	// set generator
+	unsigned state_struct_size = 0;
+	switch (rng_type) {
+#define CASE_RNG_TYPE(rng) case rng: state_struct_size = sizeof(typename mtk::cuda_rand_fp16::curand_status_t<rng>::type);break
+		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10);
+		default:
+			throw std::runtime_error("Unknown pseudo rand algorithm");
+#undef CASE_RNG_TYPE
+	}
+	cudaMalloc(&gen.status_ptr, state_struct_size * gen.num_threads);
+}
+
+void mtk::cuda_rand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
+	switch (gen.rng_type) {
+#define CASE_RNG_TYPE(rng) case rng: status_init_kernel<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type>\
+		<<<gen.num_threads / block_size, block_size, 0, gen.cuda_stream>>>\
+		(reinterpret_cast<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), seed);break
+		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10);
+		default:
+			throw std::runtime_error("Unknown pseudo rand algorithm");
+#undef CASE_RNG_TYPE
+	}
+}
+
+void mtk::cuda_rand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size) {
+	switch (gen.rng_type) {
+#define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type>\
+		<<<gen.num_threads / block_size, block_size, 0, gen.cuda_stream>>>\
+		(ptr, reinterpret_cast<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
+		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10);
+		default:
+			throw std::runtime_error("Unknown pseudo rand algorithm");
+#undef CASE_RNG_TYPE
+	}
+}
+
+void mtk::cuda_rand_fp16::destroy(generator_t &gen) {
+	cudaFree(gen.status_ptr);
+}
