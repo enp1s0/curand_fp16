@@ -1,6 +1,7 @@
 #ifndef __CUDA_RAND_FP16__
 #define __CUDA_RAND_FP16__
 #include <cstdint>
+#include <curand_kernel.h>
 #include <curand.h>
 #include <cuda_fp16.h>
 
