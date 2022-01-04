@@ -1,4 +1,4 @@
-#include <cuda_rand_fp16/cuda_rand_fp16.hpp>
+#include <curand_fp16/curand_fp16.hpp>
 #include <stdexcept>
 
 namespace {
@@ -59,7 +59,7 @@ __global__ void generate_kernel(
 }
 } // noname namespace
 
-void mtk::cuda_rand_fp16::create(generator_t &gen, const curandRngType_t rng_type) {
+void mtk::curand_fp16::create(generator_t &gen, const curandRngType_t rng_type) {
 	// set cuda stream
 	gen.cuda_stream = 0;
 	// get num sm
@@ -76,7 +76,7 @@ void mtk::cuda_rand_fp16::create(generator_t &gen, const curandRngType_t rng_typ
 	// set generator
 	unsigned state_struct_size = 0;
 	switch (rng_type) {
-#define CASE_RNG_TYPE(rng) case rng: state_struct_size = sizeof(typename mtk::cuda_rand_fp16::curand_status_t<rng>::type);break
+#define CASE_RNG_TYPE(rng) case rng: state_struct_size = sizeof(typename mtk::curand_fp16::curand_status_t<rng>::type);break
 		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10);
 		default:
 			throw std::runtime_error("Unknown pseudo rand algorithm");
@@ -85,11 +85,11 @@ void mtk::cuda_rand_fp16::create(generator_t &gen, const curandRngType_t rng_typ
 	cudaMalloc(&gen.status_ptr, state_struct_size * gen.num_threads);
 }
 
-void mtk::cuda_rand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
+void mtk::curand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
 	switch (gen.rng_type) {
-#define CASE_RNG_TYPE(rng) case rng: status_init_kernel<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type>\
+#define CASE_RNG_TYPE(rng) case rng: status_init_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type>\
 		<<<gen.num_threads / block_size, block_size, 0, gen.cuda_stream>>>\
-		(reinterpret_cast<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), seed);break
+		(reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), seed);break
 		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10);
 		default:
 			throw std::runtime_error("Unknown pseudo rand algorithm");
@@ -97,11 +97,11 @@ void mtk::cuda_rand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
 	}
 }
 
-void mtk::cuda_rand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size) {
+void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size) {
 	switch (gen.rng_type) {
-#define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type>\
+#define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type>\
 		<<<gen.num_threads / block_size, block_size, 0, gen.cuda_stream>>>\
-		(ptr, reinterpret_cast<typename mtk::cuda_rand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
+		(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
 		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10);
 		default:
 			throw std::runtime_error("Unknown pseudo rand algorithm");
@@ -109,6 +109,6 @@ void mtk::cuda_rand_fp16::uniform(generator_t &gen, half *const ptr, const std::
 	}
 }
 
-void mtk::cuda_rand_fp16::destroy(generator_t &gen) {
+void mtk::curand_fp16::destroy(generator_t &gen) {
 	cudaFree(gen.status_ptr);
 }
