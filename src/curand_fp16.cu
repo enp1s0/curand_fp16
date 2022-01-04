@@ -5,11 +5,11 @@ namespace {
 constexpr unsigned block_size = 256;
 template <class T>
 __global__ void status_init_kernel(
-		T* const status,
+		T* const status_ptr,
 		const std::uint64_t seed
 		) {
 	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-	curand_init(seed, tid, 0, status + tid);
+	curand_init(seed, tid, 0, status_ptr + tid);
 }
 
 template <class T>
