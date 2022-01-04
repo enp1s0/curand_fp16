@@ -1,2 +1,2 @@
-# cuda_rand_fp16
+# curand_fp16
 
