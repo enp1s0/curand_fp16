@@ -6,10 +6,15 @@
 #include <cuda_fp16.h>
 
 namespace mtk {
-namespace cuda_rand_fp16 {
+namespace curand_fp16 {
 template <curandRngType_t rng>
 struct curand_status_t {using type = void;};
-template <> struct curand_status_t<CURAND_RNG_PSEUDO_PHILOX4_32_10> {using type = curandStatePhilox4_32_10_t;};
+template <> struct curand_status_t<CURAND_RNG_PSEUDO_MTGP32          > {using type = curandStateMtgp32_t;};
+template <> struct curand_status_t<CURAND_RNG_QUASI_SCRAMBLED_SOBOL32> {using type = curandStateScrambledSobol32_t;};
+template <> struct curand_status_t<CURAND_RNG_QUASI_SOBOL32          > {using type = curandStateSobol32_t;};
+template <> struct curand_status_t<CURAND_RNG_PSEUDO_MRG32K3A        > {using type = curandStateMRG32k3a_t;};
+template <> struct curand_status_t<CURAND_RNG_PSEUDO_XORWOW          > {using type = curandStateXORWOW_t;};
+template <> struct curand_status_t<CURAND_RNG_PSEUDO_PHILOX4_32_10   > {using type = curandStatePhilox4_32_10_t;};
 
 struct generator_t {
 	unsigned num_sm;
@@ -25,6 +30,6 @@ void set_seed(generator_t& gen, const std::uint64_t seed);
 
 // Uniform rand distribution
 void uniform(generator_t& gen, half* const ptr, const std::size_t size);
-} // namespace cuda_rand_fp16
+} // namespace curand_fp16
 } // namespace mtk
 #endif // __CUDA_RAND_FP16__
