@@ -28,6 +28,7 @@ __global__ void generate_kernel(
 		) {
 	const auto batch_size = size_of<ulong2>::value / size_of<half>::value;
 	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+	auto curand_gen = *(status_ptr + tid);
 	for (unsigned i = tid * batch_size; i < size; i += batch_size * gridDim.x * blockDim.x) {
 		const auto res = size - i;
 		if (res < batch_size) {
@@ -45,7 +46,7 @@ __global__ void generate_kernel(
 					ushort1 us[size_of<uint1>::value / size_of<ushort1>::value];
 					uint1 ui1;
 				} rand_batch_block;
-				rand_batch_block.ui1.x = curand(status_ptr + tid);
+				rand_batch_block.ui1.x = curand(&curand_gen);
 				for (unsigned k = 0; k < size_of<uint1>::value / size_of<half>::value; k++) {
 					const auto us = rand_batch_block.us[k];
 					const auto v  = __float2half(static_cast<float>(us.x) / static_cast<float>(0xffff));
@@ -56,6 +57,7 @@ __global__ void generate_kernel(
 			*reinterpret_cast<ulong2*>(array_ptr + i) = batch_block.ul2;
 		}
 	}
+	*(status_ptr + tid) = curand_gen;
 }
 } // noname namespace
 
@@ -68,7 +70,7 @@ void mtk::curand_fp16::create(generator_t &gen, const curandRngType_t rng_type) 
 	gen.num_sm = prop.multiProcessorCount;
 
 	// calculate grid_size
-	gen.num_threads = gen.num_sm * 6 * block_size;
+	gen.num_threads = gen.num_sm * 16 * block_size;
 
 	// set algo
 	gen.rng_type = rng_type;
