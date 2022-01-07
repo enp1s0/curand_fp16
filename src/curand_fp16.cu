@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 namespace {
-constexpr unsigned block_size = 256;
+constexpr unsigned block_size = 512;
 template <class T>
 __global__ void status_init_kernel(
 		T* const status_ptr,
