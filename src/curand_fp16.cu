@@ -32,7 +32,10 @@ __global__ void generate_kernel(
 	for (unsigned i = tid * batch_size; i < size; i += batch_size * gridDim.x * blockDim.x) {
 		const auto res = size - i;
 		if (res < batch_size) {
-			// TODO
+			for (unsigned j = 0; j < res; j++) {
+				const auto v = curand(&curand_gen);
+				array_ptr[i + j] = __float2half(v);
+			}
 		} else {
 			// block gen
 			union {
