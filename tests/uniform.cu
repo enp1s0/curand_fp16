@@ -19,7 +19,8 @@ const char* get_curand_rng_name_str(const curandRngType_t rng) {
 
 void test_curand_fp16(
 		const std::size_t N,
-		curandRngType_t rng
+		curandRngType_t rng,
+		const bool pm
 		) {
 	half* ptr;
 	cudaMallocManaged(&ptr, sizeof(half) * N);
@@ -28,7 +29,7 @@ void test_curand_fp16(
 	mtk::curand_fp16::create(generator, rng);
 	mtk::curand_fp16::set_seed(generator, 0);
 
-	mtk::curand_fp16::uniform(generator, ptr, N);
+	mtk::curand_fp16::uniform(generator, ptr, N, pm);
 	cudaDeviceSynchronize();
 
 	double sum = 0;
@@ -43,7 +44,17 @@ void test_curand_fp16(
 	}
 	const auto var = tmp / (N - 1);
 
-	std::printf("[%15s] avg = %e [theo = 1/2], var = %e [theo = 1/12]\n", get_curand_rng_name_str(rng), avg, var);
+	double expected_avg;
+	double expected_var;
+	if (pm) {
+		expected_avg = 0;
+		expected_var = 1. / 3;
+	} else {
+		expected_avg = 1. / 2;
+		expected_var = 1. / 12;
+	}
+
+	std::printf("[%15s : %7s] avg = %+e [expected = %+e], var = %e [expected = %e]\n", get_curand_rng_name_str(rng), (pm ? "(-1,1)" : "(0,1)"), avg, expected_avg, var, expected_var);
 
 	mtk::curand_fp16::destroy(generator);
 	cudaFree(ptr);
@@ -84,9 +95,12 @@ void test_throughput(
 }
 
 int main() {
-	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     );
-	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_XORWOW       );
-	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10);
+	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , false);
+	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , false);
+	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, false);
+	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , true );
+	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , true );
+	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, true );
 	test_throughput(CURAND_RNG_PSEUDO_MRG32K3A     );
 	test_throughput(CURAND_RNG_PSEUDO_XORWOW       );
 	test_throughput(CURAND_RNG_PSEUDO_PHILOX4_32_10);
