@@ -29,6 +29,10 @@ make install
 
 ## Sample codes
 ```cpp
+// main.cu
+// nvcc -std=c++14 -I/path/to/include main.cu
+#include <curand_fp16/curand_fp16.hpp>
+
 constexpr std::size_t N = 1lu << 30;
 constexpr auto rng = CURAND_RNG_PSEUDO_XORWOW;
 
