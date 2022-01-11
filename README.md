@@ -30,7 +30,7 @@ make install
 ## Sample codes
 ```cpp
 // main.cu
-// nvcc -std=c++14 -I/path/to/include main.cu
+// nvcc -std=c++14 -I/path/to/include -L/path/to/lib main.cu -lcurand_fp16
 #include <curand_fp16/curand_fp16.hpp>
 
 constexpr std::size_t N = 1lu << 30;
