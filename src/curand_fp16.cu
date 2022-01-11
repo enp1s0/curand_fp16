@@ -29,35 +29,38 @@ __global__ void generate_kernel(
 	const auto batch_size = size_of<ulong2>::value / size_of<half>::value;
 	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 	auto curand_gen = *(status_ptr + tid);
-	for (unsigned i = tid * batch_size; i < size; i += batch_size * gridDim.x * blockDim.x) {
-		const auto res = size - i;
-		if (res < batch_size) {
+
+	const auto batch_loop_size = size - (size % batch_size);
+	for (unsigned i = tid * batch_size; i < batch_loop_size; i += batch_size * gridDim.x * blockDim.x) {
+		// block gen
+		union {
+			half   h1[size_of<ulong2>::value / size_of<half >::value];
+			half2  h2[size_of<ulong2>::value / size_of<half2>::value];
+			ulong2 ul2;
+		} batch_block;
+
+		for (unsigned j = 0; j < size_of<ulong2>::value / size_of<uint1>::value; j++) {
+			union {
+				ushort1 us[size_of<uint1>::value / size_of<ushort1>::value];
+				uint1 ui1;
+			} rand_batch_block;
+			rand_batch_block.ui1.x = curand(&curand_gen);
+			for (unsigned k = 0; k < size_of<uint1>::value / size_of<half>::value; k++) {
+				const auto us = rand_batch_block.us[k];
+				const auto v  = __float2half(static_cast<float>(us.x) / static_cast<float>(0xffff));
+
+				batch_block.h1[k + j * size_of<uint1>::value / size_of<half>::value] = v;
+			}
+		}
+		*reinterpret_cast<ulong2*>(array_ptr + i) = batch_block.ul2;
+	}
+	if (tid == 0) {
+		const auto res = size - batch_loop_size;
+		if (res !=0) {
 			for (unsigned j = 0; j < res; j++) {
 				const auto v = curand(&curand_gen);
-				array_ptr[i + j] = __float2half(v);
+				array_ptr[batch_loop_size + j] = __float2half(v);
 			}
-		} else {
-			// block gen
-			union {
-				half   h1[size_of<ulong2>::value / size_of<half >::value];
-				half2  h2[size_of<ulong2>::value / size_of<half2>::value];
-				ulong2 ul2;
-			} batch_block;
-
-			for (unsigned j = 0; j < size_of<ulong2>::value / size_of<uint1>::value; j++) {
-				union {
-					ushort1 us[size_of<uint1>::value / size_of<ushort1>::value];
-					uint1 ui1;
-				} rand_batch_block;
-				rand_batch_block.ui1.x = curand(&curand_gen);
-				for (unsigned k = 0; k < size_of<uint1>::value / size_of<half>::value; k++) {
-					const auto us = rand_batch_block.us[k];
-					const auto v  = __float2half(static_cast<float>(us.x) / static_cast<float>(0xffff));
-
-					batch_block.h1[k + j * size_of<uint1>::value / size_of<half>::value] = v;
-				}
-			}
-			*reinterpret_cast<ulong2*>(array_ptr + i) = batch_block.ul2;
 		}
 	}
 	*(status_ptr + tid) = curand_gen;
