@@ -6,7 +6,7 @@ find_package(CUDAToolkit REQUIRED)
 
 # CUDA/CXX
 foreach(lang CXX CUDA)
-    set(CMAKE_${lang}_STANDARD          14)
+    set(CMAKE_${lang}_STANDARD          17)
     set(CMAKE_${lang}_STANDARD_REQUIRED ON)
     set(CMAKE_${lang}_EXTENSIONS        OFF)
 endforeach()

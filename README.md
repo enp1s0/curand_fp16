@@ -3,7 +3,7 @@
 A library for generating pseudo random FP16 numbers
 
 ## Requirements
-- C++ >= 14
+- C++ >= 17
 - cmake >= 3.18
 - CUDA
 - cuRAND
