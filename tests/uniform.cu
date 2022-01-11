@@ -55,6 +55,7 @@ void test_throughput(
 	std::printf("# %s [%s]\n", __func__, get_curand_rng_name_str(rng));
 	constexpr std::size_t min_N = 1u << 10;
 	constexpr std::size_t max_N = 1u << 30;
+	constexpr std::size_t num_run = 1u << 10;
 	half* ptr;
 	cudaMallocManaged(&ptr, sizeof(half) * max_N);
 
@@ -65,10 +66,12 @@ void test_throughput(
 	for (std::size_t N = min_N; N <= max_N; N <<= 1) {
 		cudaDeviceSynchronize();
 		const auto start_clock = std::chrono::system_clock::now();
-		mtk::curand_fp16::uniform(generator, ptr, N);
+		for (std::size_t i = 0; i < num_run; i++) {
+			mtk::curand_fp16::uniform(generator, ptr, N);
+		}
 		cudaDeviceSynchronize();
 		const auto end_clock = std::chrono::system_clock::now();
-		const auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count() * 1e-6;
+		const auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(end_clock - start_clock).count() * 1e-6 / num_run;
 		std::printf("%10lu, %.3e [s], %.3e [GB/s]\n",
 				N,
 				elapsed_time,
