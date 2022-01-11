@@ -2,6 +2,10 @@
 
 A library for generating pseudo random FP16 numbers
 
+## Throughput
+
+<img src='./docs/throughput.svg'>
+
 ## Requirements
 - C++ >= 17
 - cmake >= 3.18
