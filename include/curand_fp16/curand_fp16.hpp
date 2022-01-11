@@ -27,6 +27,7 @@ struct generator_t {
 void create(generator_t& gen, const curandRngType_t rng_type);
 void destroy(generator_t& gen);
 void set_seed(generator_t& gen, const std::uint64_t seed);
+void set_cuda_stream(generator_t& gen, cudaStream_t const cuda_stream);
 
 // Uniform rand distribution
 // pm == true  | (-1, 1)

@@ -141,6 +141,13 @@ void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::siz
 	}
 }
 
+void mtk::curand_fp16::set_cuda_stream(
+		mtk::curand_fp16::generator_t& generator,
+		cudaStream_t const cuda_stream
+		) {
+	generator.cuda_stream = cuda_stream;
+}
+
 void mtk::curand_fp16::destroy(generator_t &gen) {
 	cudaFree(gen.status_ptr);
 }
