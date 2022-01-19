@@ -4,8 +4,8 @@
 namespace {
 constexpr unsigned block_size = 512;
 constexpr unsigned store_block_batch_size = 1;
-constexpr unsigned num_sm_scale = 8;
-using block_t = ulong2;
+constexpr unsigned num_sm_scale = 1;
+using block_t = ulong1;
 
 template <class T>
 __global__ void status_init_kernel(
