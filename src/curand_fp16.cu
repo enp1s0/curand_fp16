@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 namespace {
-constexpr unsigned block_size = 512;
+constexpr unsigned block_size = 1024;
 constexpr unsigned store_block_batch_size = 1;
 constexpr unsigned num_sm_scale = 1;
 using block_t = ulong1;
