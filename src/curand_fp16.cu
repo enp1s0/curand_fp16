@@ -128,7 +128,7 @@ void mtk::curand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
 
 void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size, const bool pm) {
 	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
-	const auto grid_size = std::min<unsigned>(gen.num_threads / block_size, (size + batch_size - 1) / batch_size);
+	const auto grid_size = std::min<unsigned>(gen.num_threads / block_size, ((size + batch_size - 1) / batch_size + block_size - 1) / block_size);
 	if (pm == 0) {
 		switch (gen.rng_type) {
 #define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 0>\
