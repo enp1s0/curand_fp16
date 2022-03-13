@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 namespace {
-constexpr unsigned block_size = 1024;
+constexpr unsigned block_size = 256;
 constexpr unsigned store_block_batch_size = 1;
 constexpr unsigned num_sm_scale = 1;
 using block_t = ulong1;
@@ -31,7 +31,7 @@ __global__ void generate_kernel(
 		RNG_T* const status_ptr,
 		const std::size_t size
 		) {
-	const auto batch_size = size_of<BLOCK_T>::value / size_of<half>::value * store_block_batch_size;
+	constexpr auto batch_size = size_of<BLOCK_T>::value / size_of<half>::value * store_block_batch_size;
 	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 	auto curand_gen = *(status_ptr + tid);
 
@@ -46,7 +46,9 @@ __global__ void generate_kernel(
 			short s[size_of<BLOCK_T>::value / size_of<ushort1>::value];
 		} batch_block[store_block_batch_size];
 
+#pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
+#pragma unroll
 			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half2>::value; j++) {
 				batch_block[sb].u[j] = curand(&curand_gen);
 				if constexpr (pm == 0) {
@@ -54,16 +56,21 @@ __global__ void generate_kernel(
 				}
 			}
 		}
+#pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
+#pragma unroll
 			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half>::value; j++) {
 				batch_block[sb].h1[j] = __short2half_rn(batch_block[sb].s[j]);
 			}
 		}
+#pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
+#pragma unroll
 			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half2>::value; j++) {
 				batch_block[sb].h2[j] = __hmul2(batch_block[sb].h2[j], __float2half2_rn(1.f / 0x7fff));
 			}
 		}
+#pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
 			*(reinterpret_cast<BLOCK_T*>(array_ptr + i) + sb) = batch_block[sb].store_block;
 		}
@@ -128,7 +135,12 @@ void mtk::curand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
 
 void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size, const bool pm) {
 	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
-	const auto grid_size = std::min<unsigned>(gen.num_threads / block_size, ((size + batch_size - 1) / batch_size + block_size - 1) / block_size);
+	const auto grid_size = std::min<unsigned>(
+			std::min<unsigned>(gen.num_threads / block_size,
+				(size + block_size - 1) / block_size
+				),
+			((size + batch_size - 1) / batch_size + block_size - 1) / block_size
+			);
 	if (pm == 0) {
 		switch (gen.rng_type) {
 #define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 0>\
