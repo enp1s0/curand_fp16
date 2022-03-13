@@ -20,10 +20,10 @@ template <class T>
 struct size_of{int value = 0;};
 template <> struct size_of<ushort1> {static const int value = 2;};
 template <> struct size_of<uint1  > {static const int value = 4;};
-template <> struct size_of<ulong2 > {static const int value = 16;};
 template <> struct size_of<ulong1 > {static const int value = 8;};
 template <> struct size_of<half   > {static const int value = 2;};
 template <> struct size_of<half2  > {static const int value = 4;};
+//template <> struct size_of<ulong2 > {static const int value = 16;};
 
 template <class RNG_T, class BLOCK_T, uint32_t pm = 0>
 __global__ void generate_kernel(
@@ -127,10 +127,12 @@ void mtk::curand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
 }
 
 void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size, const bool pm) {
+	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
+	const auto grid_size = std::min<unsigned>(gen.num_threads / block_size, (size + batch_size - 1) / batch_size);
 	if (pm == 0) {
 		switch (gen.rng_type) {
 #define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 0>\
-			<<<gen.num_threads / block_size, block_size, 0, gen.cuda_stream>>>\
+			<<<grid_size, block_size, 0, gen.cuda_stream>>>\
 			(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
 			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
 			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
@@ -142,7 +144,7 @@ void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::siz
 	} else {
 		switch (gen.rng_type) {
 #define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 1>\
-			<<<gen.num_threads / block_size, block_size, 0, gen.cuda_stream>>>\
+			<<<grid_size, block_size, 0, gen.cuda_stream>>>\
 			(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
 			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
 			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
