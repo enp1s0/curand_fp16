@@ -175,9 +175,9 @@ int main() {
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , 0, 1);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , 0, 1);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, 0, 1);
-	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , 1, 1);
-	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , 1, 1);
-	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, 1, 1);
+	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , 1, 2);
+	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , 1, 2);
+	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, 1, 2);
 
 	test_throughput(CURAND_RNG_PSEUDO_MRG32K3A     );
 	test_throughput(CURAND_RNG_PSEUDO_XORWOW       );
