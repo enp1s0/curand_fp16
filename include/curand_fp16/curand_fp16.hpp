@@ -29,10 +29,13 @@ void destroy(generator_t& gen);
 void set_seed(generator_t& gen, const std::uint64_t seed);
 void set_cuda_stream(generator_t& gen, cudaStream_t const cuda_stream);
 
-// Uniform rand distribution
+// Uniform distribution
 // pm == true  | (-1, 1)
 //       false | ( 0, 1)
 void uniform(generator_t& gen, half* const ptr, const std::size_t size, const bool pm = false);
+
+// Normal distribution
+void normal(generator_t& gen, half* const ptr, const std::size_t size, const float mean, const float var);
 } // namespace curand_fp16
 } // namespace mtk
 #endif // __CUDA_RAND_FP16__
