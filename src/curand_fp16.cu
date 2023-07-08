@@ -79,8 +79,8 @@ __global__ void generate_kernel(
 		const auto res = size - batch_loop_size;
 		if (res !=0) {
 			for (unsigned j = 0; j < res; j++) {
-				const auto v = curand(&curand_gen);
-				array_ptr[batch_loop_size + j] = __float2half(v);
+				const auto v = static_cast<short>(curand(&curand_gen) & (pm ? 0xffff : 0x7fff));
+				array_ptr[batch_loop_size + j] = __hmul(__short2half_rn(v), __float2half_rn(1.f / 0x7fff));
 			}
 		}
 	}
