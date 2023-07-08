@@ -143,7 +143,7 @@ __global__ void generate_normal_kernel(
 		const auto res = size - batch_loop_size;
 		if (res !=0) {
 			for (unsigned j = 0; j < res; j++) {
-				const auto v = curand(&curand_gen);
+				const auto v = (curand_normal(&curand_gen) + mean) * sigma;
 				array_ptr[batch_loop_size + j] = __float2half(v);
 			}
 		}
