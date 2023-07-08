@@ -54,7 +54,7 @@ void test_curand_fp16(
 		expected_var = 1. / 12;
 	}
 
-	std::printf("[%15s : %7s] avg = %+e [expected = %+e], var = %e [expected = %e]\n", get_curand_rng_name_str(rng), (pm ? "(-1,1)" : "(0,1)"), avg, expected_avg, var, expected_var);
+	std::printf("[%15s : %lu : %7s] avg = %+e [expected = %+e], var = %e [expected = %e]\n", get_curand_rng_name_str(rng), N, (pm ? "(-1,1)" : "(0,1)"), avg, expected_avg, var, expected_var);
 
 	mtk::curand_fp16::destroy(generator);
 	cudaFree(ptr);
@@ -166,18 +166,33 @@ void test_throughput_normal(
 }
 
 int main() {
+	std::printf("# uniform\n");
 	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , false);
 	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , false);
 	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, false);
 	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , true );
 	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , true );
 	test_curand_fp16(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, true );
+	test_curand_fp16((1u << 20) - 1, CURAND_RNG_PSEUDO_MRG32K3A     , false);
+	test_curand_fp16((1u << 20) - 1, CURAND_RNG_PSEUDO_XORWOW       , false);
+	test_curand_fp16((1u << 20) - 1, CURAND_RNG_PSEUDO_PHILOX4_32_10, false);
+	test_curand_fp16((1u << 20) - 1, CURAND_RNG_PSEUDO_MRG32K3A     , true );
+	test_curand_fp16((1u << 20) - 1, CURAND_RNG_PSEUDO_XORWOW       , true );
+	test_curand_fp16((1u << 20) - 1, CURAND_RNG_PSEUDO_PHILOX4_32_10, true );
+
+	std::printf("# normal\n");
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , 0, 1);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , 0, 1);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, 0, 1);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_MRG32K3A     , 1, 2);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_XORWOW       , 1, 2);
 	test_curand_fp16_normal(1u << 20, CURAND_RNG_PSEUDO_PHILOX4_32_10, 1, 2);
+	test_curand_fp16_normal((1u << 20) - 1, CURAND_RNG_PSEUDO_MRG32K3A     , 0, 1);
+	test_curand_fp16_normal((1u << 20) - 1, CURAND_RNG_PSEUDO_XORWOW       , 0, 1);
+	test_curand_fp16_normal((1u << 20) - 1, CURAND_RNG_PSEUDO_PHILOX4_32_10, 0, 1);
+	test_curand_fp16_normal((1u << 20) - 1, CURAND_RNG_PSEUDO_MRG32K3A     , 1, 2);
+	test_curand_fp16_normal((1u << 20) - 1, CURAND_RNG_PSEUDO_XORWOW       , 1, 2);
+	test_curand_fp16_normal((1u << 20) - 1, CURAND_RNG_PSEUDO_PHILOX4_32_10, 1, 2);
 
 	test_throughput(CURAND_RNG_PSEUDO_MRG32K3A     );
 	test_throughput(CURAND_RNG_PSEUDO_XORWOW       );
