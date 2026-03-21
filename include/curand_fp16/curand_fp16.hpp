@@ -4,6 +4,7 @@
 #include <curand_kernel.h>
 #include <curand.h>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 
 namespace mtk {
 namespace curand_fp16 {
@@ -33,9 +34,11 @@ void set_cuda_stream(generator_t& gen, cudaStream_t const cuda_stream);
 // pm == true  | (-1, 1)
 //       false | ( 0, 1)
 void uniform(generator_t& gen, half* const ptr, const std::size_t size, const bool pm = false);
+void uniform(generator_t& gen, __nv_bfloat16* const ptr, const std::size_t size, const bool pm = false);
 
 // Normal distribution
 void normal(generator_t& gen, half* const ptr, const std::size_t size, const float mean, const float var);
+void normal(generator_t& gen, __nv_bfloat16* const ptr, const std::size_t size, const float mean, const float var);
 } // namespace curand_fp16
 } // namespace mtk
 #endif // __CUDA_RAND_FP16__

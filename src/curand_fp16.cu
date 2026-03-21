@@ -23,15 +23,29 @@ template <> struct size_of<uint1  > {static const int value = 4;};
 template <> struct size_of<ulong1 > {static const int value = 8;};
 template <> struct size_of<half   > {static const int value = 2;};
 template <> struct size_of<half2  > {static const int value = 4;};
+template <> struct size_of<__nv_bfloat16 > {static const int value = 2;};
+template <> struct size_of<__nv_bfloat162> {static const int value = 4;};
 //template <> struct size_of<ulong2 > {static const int value = 16;};
 
-template <class RNG_T, class BLOCK_T, uint32_t pm = 0>
+template <class T>
+struct x2_t {};
+template <>
+struct x2_t<half> {
+  using type = half2;
+};
+template <>
+struct x2_t<__nv_bfloat16> {
+  using type = __nv_bfloat162;
+};
+
+template <class T, class RNG_T, class BLOCK_T, uint32_t pm = 0>
 __global__ void generate_kernel(
-		half* const array_ptr,
+		T* const array_ptr,
 		RNG_T* const status_ptr,
 		const std::size_t size
 		) {
-	constexpr auto batch_size = size_of<BLOCK_T>::value / size_of<half>::value * store_block_batch_size;
+  using T2 = typename x2_t<T>::type;
+	constexpr auto batch_size = size_of<BLOCK_T>::value / size_of<T>::value * store_block_batch_size;
 	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 	auto curand_gen = *(status_ptr + tid);
 
@@ -39,8 +53,8 @@ __global__ void generate_kernel(
 	for (unsigned i = tid * batch_size; i < batch_loop_size; i += batch_size * gridDim.x * blockDim.x) {
 		// block gen
 		union {
-			half   h1[size_of<BLOCK_T>::value / size_of<half >::value];
-			half2  h2[size_of<BLOCK_T>::value / size_of<half2>::value];
+			T  h1[size_of<BLOCK_T>::value / size_of<T >::value];
+			T2 h2[size_of<BLOCK_T>::value / size_of<T2>::value];
 			BLOCK_T store_block;
 			unsigned u[size_of<BLOCK_T>::value / size_of<uint1>::value];
 			short s[size_of<BLOCK_T>::value / size_of<ushort1>::value];
@@ -49,7 +63,7 @@ __global__ void generate_kernel(
 #pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
 #pragma unroll
-			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half2>::value; j++) {
+			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<T2>::value; j++) {
 				batch_block[sb].u[j] = curand(&curand_gen);
 				if constexpr (pm == 0) {
 					batch_block[sb].u[j] &= 0x7fff7fffu;
@@ -59,15 +73,23 @@ __global__ void generate_kernel(
 #pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
 #pragma unroll
-			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half>::value; j++) {
-				batch_block[sb].h1[j] = __short2half_rn(batch_block[sb].s[j]);
+			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<T>::value; j++) {
+        if constexpr (std::is_same_v<T, half>) {
+          batch_block[sb].h1[j] = __short2half_rn(batch_block[sb].s[j]);
+        } else {
+          batch_block[sb].h1[j] = __short2bfloat16_rn(batch_block[sb].s[j]);
+        }
 			}
 		}
 #pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
 #pragma unroll
-			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half2>::value; j++) {
-				batch_block[sb].h2[j] = __hmul2(batch_block[sb].h2[j], __float2half2_rn(1.f / 0x7fff));
+			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<T2>::value; j++) {
+        if constexpr (std::is_same_v<T, half>) {
+          batch_block[sb].h2[j] = __hmul2(batch_block[sb].h2[j], __float2half2_rn(1.f / 0x7fff));
+        } else {
+          batch_block[sb].h2[j] = __hmul2(batch_block[sb].h2[j], __float2bfloat162_rn(1.f / 0x7fff));
+        }
 			}
 		}
 #pragma unroll
@@ -80,22 +102,27 @@ __global__ void generate_kernel(
 		if (res !=0) {
 			for (unsigned j = 0; j < res; j++) {
 				const auto v = static_cast<short>(curand(&curand_gen) & (pm ? 0xffff : 0x7fff));
-				array_ptr[batch_loop_size + j] = __hmul(__short2half_rn(v), __float2half_rn(1.f / 0x7fff));
+        if constexpr (std::is_same_v<T, half>) {
+          array_ptr[batch_loop_size + j] = __hmul(__short2half_rn(v), __float2half_rn(1.f / 0x7fff));
+        } else {
+          array_ptr[batch_loop_size + j] = __hmul(__short2bfloat16_rn(v), __float2bfloat16_rn(1.f / 0x7fff));
+        }
 			}
 		}
 	}
 	*(status_ptr + tid) = curand_gen;
 }
 
-template <class RNG_T, class BLOCK_T>
+template <class T, class RNG_T, class BLOCK_T>
 __global__ void generate_normal_kernel(
-		half* const array_ptr,
+		T* const array_ptr,
 		RNG_T* const status_ptr,
 		const std::size_t size,
 		const float mean,
 		const float sigma
 		) {
-	constexpr auto batch_size = size_of<BLOCK_T>::value / size_of<half>::value * store_block_batch_size;
+  using T2 = typename x2_t<T>::type;
+	constexpr auto batch_size = size_of<BLOCK_T>::value / size_of<T>::value * store_block_batch_size;
 	const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 	auto curand_gen = *(status_ptr + tid);
 
@@ -103,8 +130,8 @@ __global__ void generate_normal_kernel(
 	for (unsigned i = tid * batch_size; i < batch_loop_size; i += batch_size * gridDim.x * blockDim.x) {
 		// block gen
 		union {
-			half   h1[size_of<BLOCK_T>::value / size_of<half >::value];
-			half2  h2[size_of<BLOCK_T>::value / size_of<half2>::value];
+			T  h1[size_of<BLOCK_T>::value / size_of<T >::value];
+			T2 h2[size_of<BLOCK_T>::value / size_of<T2>::value];
 			BLOCK_T store_block;
 			unsigned u[size_of<BLOCK_T>::value / size_of<uint1>::value];
 			short s[size_of<BLOCK_T>::value / size_of<ushort1>::value];
@@ -114,7 +141,7 @@ __global__ void generate_normal_kernel(
 #pragma unroll
 		for (unsigned sb = 0; sb < store_block_batch_size; sb++) {
 #pragma unroll
-			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<half2>::value; j++) {
+			for (unsigned j = 0; j < size_of<BLOCK_T>::value / size_of<T2>::value; j++) {
 				batch_block[sb].u[j] = curand(&curand_gen);
 				batch_block[sb].u[j] |= 0x00010001u;
 			}
@@ -130,8 +157,14 @@ __global__ void generate_normal_kernel(
 				const auto f2_y = static_cast<float>(s2.y) / 0x10000;
 				float si, co;
 				sincosf(two_pi * f2_y, &si, &co);
-				const auto h2 = __float22half2_rn(make_float2(si, co));
-				batch_block[sb].h2[j] = __hfma2(__float2half2_rn(mag), h2, __float2half2_rn(mean));
+        if constexpr (std::is_same_v<T, half>) {
+          const auto h2 = __float22half2_rn(make_float2(si, co));
+          batch_block[sb].h2[j] = __hfma2(__float2half2_rn(mag), h2, __float2half2_rn(mean));
+        } else {
+          const auto h2 = __float22bfloat162_rn(make_float2(si, co));
+          batch_block[sb].h2[j].x = __float2bfloat16_rn(mag) * h2.x + __float2bfloat16_rn(mean);
+          batch_block[sb].h2[j].y = __float2bfloat16_rn(mag) * h2.y + __float2bfloat16_rn(mean);
+        }
 			}
 		}
 #pragma unroll
@@ -144,11 +177,69 @@ __global__ void generate_normal_kernel(
 		if (res !=0) {
 			for (unsigned j = 0; j < res; j++) {
 				const auto v = (curand_normal(&curand_gen) + mean) * sigma;
-				array_ptr[batch_loop_size + j] = __float2half(v);
+				array_ptr[batch_loop_size + j] = static_cast<T>(v);
 			}
 		}
 	}
 	*(status_ptr + tid) = curand_gen;
+}
+
+template <class T>
+void uniform_core(mtk::curand_fp16::generator_t &gen, T *const ptr, const std::size_t size, const bool pm) {
+	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
+	const auto grid_size = std::min<unsigned>(
+			std::min<unsigned>(gen.num_threads / block_size,
+				(size + block_size - 1) / block_size
+				),
+			((size + batch_size - 1) / batch_size + block_size - 1) / block_size
+			);
+	if (pm == 0) {
+		switch (gen.rng_type) {
+#define CASE_RNG_TYPE(rng) case rng: generate_kernel<T, typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 0>\
+			<<<grid_size, block_size, 0, gen.cuda_stream>>>\
+			(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
+			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
+			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
+			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10   );
+		default:
+			throw std::runtime_error("Unknown pseudo rand algorithm");
+#undef CASE_RNG_TYPE
+		}
+	} else {
+		switch (gen.rng_type) {
+#define CASE_RNG_TYPE(rng) case rng: generate_kernel<T, typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 1>\
+			<<<grid_size, block_size, 0, gen.cuda_stream>>>\
+			(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
+			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
+			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
+			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10   );
+		default:
+			throw std::runtime_error("Unknown pseudo rand algorithm");
+#undef CASE_RNG_TYPE
+		}
+	}
+}
+
+template <class T>
+void normal_core(mtk::curand_fp16::generator_t &gen, T *const ptr, const std::size_t size, const float mean, const float var) {
+	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
+	const auto grid_size = std::min<unsigned>(
+			std::min<unsigned>(gen.num_threads / block_size,
+				(size + block_size - 1) / block_size
+				),
+			((size + batch_size - 1) / batch_size + block_size - 1) / block_size
+			);
+	switch (gen.rng_type) {
+#define CASE_RNG_TYPE(rng) case rng: generate_normal_kernel<T, typename mtk::curand_fp16::curand_status_t<rng>::type, block_t>\
+		<<<grid_size, block_size, 0, gen.cuda_stream>>>\
+		(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size, mean, std::sqrt(var));break
+		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
+		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
+		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10   );
+	default:
+		throw std::runtime_error("Unknown pseudo rand algorithm");
+#undef CASE_RNG_TYPE
+	}
 }
 } // noname namespace
 
@@ -197,62 +288,6 @@ void mtk::curand_fp16::set_seed(generator_t &gen, const std::uint64_t seed) {
 	}
 }
 
-void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size, const bool pm) {
-	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
-	const auto grid_size = std::min<unsigned>(
-			std::min<unsigned>(gen.num_threads / block_size,
-				(size + block_size - 1) / block_size
-				),
-			((size + batch_size - 1) / batch_size + block_size - 1) / block_size
-			);
-	if (pm == 0) {
-		switch (gen.rng_type) {
-#define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 0>\
-			<<<grid_size, block_size, 0, gen.cuda_stream>>>\
-			(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
-			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
-			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
-			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10   );
-		default:
-			throw std::runtime_error("Unknown pseudo rand algorithm");
-#undef CASE_RNG_TYPE
-		}
-	} else {
-		switch (gen.rng_type) {
-#define CASE_RNG_TYPE(rng) case rng: generate_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t, 1>\
-			<<<grid_size, block_size, 0, gen.cuda_stream>>>\
-			(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size);break
-			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
-			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
-			CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10   );
-		default:
-			throw std::runtime_error("Unknown pseudo rand algorithm");
-#undef CASE_RNG_TYPE
-		}
-	}
-}
-
-void mtk::curand_fp16::normal(generator_t &gen, half *const ptr, const std::size_t size, const float mean, const float var) {
-	const auto batch_size = size_of<block_t>::value / size_of<half>::value;
-	const auto grid_size = std::min<unsigned>(
-			std::min<unsigned>(gen.num_threads / block_size,
-				(size + block_size - 1) / block_size
-				),
-			((size + batch_size - 1) / batch_size + block_size - 1) / block_size
-			);
-	switch (gen.rng_type) {
-#define CASE_RNG_TYPE(rng) case rng: generate_normal_kernel<typename mtk::curand_fp16::curand_status_t<rng>::type, block_t>\
-		<<<grid_size, block_size, 0, gen.cuda_stream>>>\
-		(ptr, reinterpret_cast<typename mtk::curand_fp16::curand_status_t<rng>::type*>(gen.status_ptr), size, mean, std::sqrt(var));break
-		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_MRG32K3A        );
-		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_XORWOW          );
-		CASE_RNG_TYPE(CURAND_RNG_PSEUDO_PHILOX4_32_10   );
-	default:
-		throw std::runtime_error("Unknown pseudo rand algorithm");
-#undef CASE_RNG_TYPE
-	}
-}
-
 void mtk::curand_fp16::set_cuda_stream(
 		mtk::curand_fp16::generator_t& generator,
 		cudaStream_t const cuda_stream
@@ -262,4 +297,20 @@ void mtk::curand_fp16::set_cuda_stream(
 
 void mtk::curand_fp16::destroy(generator_t &gen) {
 	cudaFree(gen.status_ptr);
+}
+
+void mtk::curand_fp16::uniform(generator_t &gen, half *const ptr, const std::size_t size, const bool pm) {
+  uniform_core(gen, ptr, size, pm);
+}
+
+void mtk::curand_fp16::uniform(generator_t &gen, __nv_bfloat16 *const ptr, const std::size_t size, const bool pm) {
+  uniform_core(gen, ptr, size, pm);
+}
+
+void mtk::curand_fp16::normal(generator_t &gen, half *const ptr, const std::size_t size, const float mean, const float var) {
+  normal_core(gen, ptr, size, mean, var);
+}
+
+void mtk::curand_fp16::normal(generator_t &gen, __nv_bfloat16 *const ptr, const std::size_t size, const float mean, const float var) {
+  normal_core(gen, ptr, size, mean, var);
 }
