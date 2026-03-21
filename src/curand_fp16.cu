@@ -162,8 +162,12 @@ __global__ void generate_normal_kernel(
           batch_block[sb].h2[j] = __hfma2(__float2half2_rn(mag), h2, __float2half2_rn(mean));
         } else {
           const auto h2 = __float22bfloat162_rn(make_float2(si, co));
+#if __CUDA_ARCH__ >= 900
+          batch_block[sb].h2[j] = __hfma2(__float2bfloat162_rn(mag), h2, __float2bfloat162_rn(mean));
+#else
           batch_block[sb].h2[j].x = __float2bfloat16_rn(mag) * h2.x + __float2bfloat16_rn(mean);
           batch_block[sb].h2[j].y = __float2bfloat16_rn(mag) * h2.y + __float2bfloat16_rn(mean);
+#endif
         }
 			}
 		}
